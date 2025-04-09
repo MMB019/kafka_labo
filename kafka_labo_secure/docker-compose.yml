@@ -1,0 +1,170 @@
+version: '3.7'
+
+services:
+  broker1:
+    image: bitnami/kafka:latest
+    container_name: kafka1
+    environment:
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@broker1:9093,2@broker2:9093,3@broker3:9093
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://broker1:9092,EXTERNAL://localhost:19092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_CFG_JMX_PORT=9999
+    volumes:
+      - kafka1_data:/bitnami/kafka
+    ports:
+      - "19092:9094"
+      - "9999:9999"
+    networks:
+      - kafka-network
+
+  broker2:
+    image: bitnami/kafka:latest
+    container_name: kafka2
+    environment:
+      - KAFKA_CFG_PROCESS_ROLES=broker
+      - KAFKA_CFG_NODE_ID=2
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@broker1:9093,2@broker2:9093,3@broker3:9093
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://broker2:9092,EXTERNAL://localhost:29092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_CFG_JMX_PORT=9999
+    volumes:
+      - kafka2_data:/bitnami/kafka
+    ports:
+      - "29092:9094"
+      - "9998:9999"
+    networks:
+      - kafka-network
+
+  broker3:
+    image: bitnami/kafka:latest
+    container_name: kafka3
+    environment:
+      - KAFKA_CFG_PROCESS_ROLES=broker
+      - KAFKA_CFG_NODE_ID=3
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@broker1:9093,2@broker2:9093,3@broker3:9093
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://broker3:9092,EXTERNAL://localhost:39092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_CFG_JMX_PORT=9999
+    volumes:
+      - kafka3_data:/bitnami/kafka
+    ports:
+      - "39092:9094"
+      - "9997:9999"
+    networks:
+      - kafka-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      - broker1
+      - broker2
+      - broker3
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=broker1:9092,broker2:9092,broker3:9092
+    ports:
+      - "8080:8080"
+    networks:
+      - kafka-network
+
+  kafka-connect:
+    image: confluentinc/cp-kafka-connect:7.7.0.arm64
+    platform: linux/arm64
+    container_name: kafka-connect
+    depends_on:
+      - broker1
+      - broker2
+      - broker3
+    environment:
+      - CONNECT_BOOTSTRAP_SERVERS=broker1:9092,broker2:9092,broker3:9092
+      - CONNECT_REST_PORT=8083
+      - CONNECT_GROUP_ID=kafka-connect
+      - CONNECT_CONFIG_STORAGE_TOPIC=connect-configs
+      - CONNECT_OFFSET_STORAGE_TOPIC=connect-offsets
+      - CONNECT_STATUS_STORAGE_TOPIC=connect-status
+      - CONNECT_KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      - CONNECT_VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      - CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR=3
+      - CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR=3
+      - CONNECT_STATUS_STORAGE_REPLICATION_FACTOR=3
+      - CONNECT_PLUGIN_PATH=/usr/share/java,/usr/share/confluent-hub-components
+    ports:
+      - "8083:8083"
+    networks:
+      - kafka-network
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.7.0.arm64
+    platform: linux/arm64
+    container_name: schema-registry
+    depends_on:
+      - broker1
+      - broker2
+      - broker3
+    environment:
+      - SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS=broker1:9092,broker2:9092,broker3:9092
+      - SCHEMA_REGISTRY_LISTENERS=http://0.0.0.0:8081
+    ports:
+      - "8081:8081"
+    networks:
+      - kafka-network
+
+  ksqldb-server:
+    image: confluentinc/cp-ksqldb-server:7.7.0.arm64
+    platform: linux/arm64
+    container_name: ksql
+    depends_on:
+      - broker1
+      - broker2
+      - broker3
+    environment:
+      - KSQL_BOOTSTRAP_SERVERS=broker1:9092,broker2:9092,broker3:9092
+      - KSQL_LISTENERS=http://0.0.0.0:8088
+      - KSQL_CACHE_MAX_BYTES_BUFFERING=0
+    ports:
+      - "8088:8088"
+    networks:
+      - kafka-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    platform: linux/arm64
+    container_name: prometheus
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - ./prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - kafka-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    networks:
+      - kafka-network
+
+volumes:
+  kafka1_data:
+  kafka2_data:
+  kafka3_data:
+
+networks:
+  kafka-network:
+    driver: bridge

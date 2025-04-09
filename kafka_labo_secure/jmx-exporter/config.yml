@@ -1,0 +1,7 @@
+hostPort: kafka-1:9992
+username: 
+password: 
+whitelistObjectNames: ["kafka.server:*", "kafka.network:*", "kafka.controller:*"]
+blacklistObjectNames: []
+rules:
+  - pattern: ".*"
